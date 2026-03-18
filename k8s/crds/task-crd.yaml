@@ -1,0 +1,189 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tasks.antigravity.io
+  namespace: antigravity-system
+spec:
+  group: antigravity.io
+  scope: Namespaced
+  names:
+    kind: Task
+    plural: tasks
+    singular: task
+    shortNames:
+      - tk
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - agentId
+                - description
+              properties:
+                agentId:
+                  type: string
+                  description: "ID of the agent to execute the task"
+                description:
+                  type: string
+                  description: "Task description"
+                  minLength: 1
+                  maxLength: 5000
+                context:
+                  type: object
+                  description: "Additional context for the task"
+                  additionalProperties: true
+                priority:
+                  type: string
+                  enum:
+                    - critical
+                    - high
+                    - normal
+                    - low
+                  default: normal
+                timeout:
+                  type: integer
+                  description: "Task timeout in seconds"
+                  minimum: 1
+                  default: 3600
+                retryPolicy:
+                  type: object
+                  properties:
+                    maxRetries:
+                      type: integer
+                      minimum: 0
+                      default: 3
+                    backoffSeconds:
+                      type: integer
+                      minimum: 1
+                      default: 5
+                    exponentialBackoff:
+                      type: boolean
+                      default: true
+                artifacts:
+                  type: array
+                  description: "Input artifacts"
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      path:
+                        type: string
+                      source:
+                        type: string
+                parallelTasks:
+                  type: array
+                  description: "Task IDs to run in parallel"
+                  items:
+                    type: string
+                dependsOn:
+                  type: array
+                  description: "Task IDs this task depends on"
+                  items:
+                    type: string
+                notifications:
+                  type: object
+                  properties:
+                    onSuccess:
+                      type: array
+                      items:
+                        type: string
+                    onFailure:
+                      type: array
+                      items:
+                        type: string
+                    webhook:
+                      type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Running
+                    - Succeeded
+                    - Failed
+                    - Skipped
+                    - Unknown
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                startTime:
+                  type: string
+                  format: date-time
+                completionTime:
+                  type: string
+                  format: date-time
+                duration:
+                  type: integer
+                  description: "Duration in seconds"
+                result:
+                  type: object
+                  description: "Task execution result"
+                  additionalProperties: true
+                error:
+                  type: string
+                  description: "Error message if task failed"
+                retryCount:
+                  type: integer
+                outputs:
+                  type: array
+                  description: "Output artifacts"
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      path:
+                        type: string
+                      size:
+                        type: integer
+                logs:
+                  type: object
+                  properties:
+                    stdout:
+                      type: string
+                    stderr:
+                      type: string
+      additionalPrinterColumns:
+        - name: AGENT
+          type: string
+          jsonPath: .spec.agentId
+        - name: PRIORITY
+          type: string
+          jsonPath: .spec.priority
+        - name: STATUS
+          type: string
+          jsonPath: .status.phase
+        - name: DURATION
+          type: integer
+          jsonPath: .status.duration
+        - name: AGE
+          type: date
+          jsonPath: .metadata.creationTimestamp

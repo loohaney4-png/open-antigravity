@@ -1,0 +1,422 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: applications.argoproj.io
+spec:
+  group: argoproj.io
+  names:
+    kind: Application
+    listKind: ApplicationList
+    plural: applications
+    shortNames:
+    - app
+    - apps
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              project:
+                type: string
+              source:
+                type: object
+                properties:
+                  repoURL:
+                    type: string
+                  path:
+                    type: string
+                  targetRevision:
+                    type: string
+              destination:
+                type: object
+                properties:
+                  server:
+                    type: string
+                  namespace:
+                    type: string
+              syncPolicy:
+                type: object
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-server
+  namespace: argocd
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-application-controller
+  namespace: argocd
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-server
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - applications
+  - applicationsets
+  - argocds
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-application-controller
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-server
+subjects:
+- kind: ServiceAccount
+  name: argocd-server
+  namespace: argocd
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-application-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-application-controller
+subjects:
+- kind: ServiceAccount
+  name: argocd-application-controller
+  namespace: argocd
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+data:
+  # ArgoCD server configuration
+  url: https://argocd.example.com
+  application.instanceLabelKey: argocd.argoproj.io/instance
+  
+  # Repository configuration
+  repositories: |
+    - url: https://github.com/ishandutta2007/open-antigravity
+      type: git
+      name: open-antigravity
+      
+  # Repository credentials
+  repository.credentials: |
+    - url: https://github.com
+      type: git
+      
+  # General configuration
+  admin.enabled: 'true'
+  users.anonymous.enabled: 'false'
+  timeout.reconciliation: 180s
+  timeout.server.insecure: 10s
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+data:
+  policy.default: 'role:viewer'
+  policy.csv: |
+    # Built-in roles
+    p, role:admin, applications, *, */*, allow
+    p, role:admin, repositories, *, *, allow
+    p, role:admin, clusters, *, *, allow
+    p, role:admin, accounts, *, *, allow
+    
+    # Developer role: can manage applications but not clusters/repos
+    p, role:developer, applications, *, */*, allow
+    p, role:developer, repositories, get, *, allow
+    
+    # Viewer role: read-only access
+    p, role:viewer, applications, get, */*, allow
+    p, role:viewer, repositories, get, *, allow
+    p, role:viewer, logs, get, *, allow
+    
+    # User roles
+    g, admin-user, role:admin
+    g, developer-user, role:developer
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-secret
+  namespace: argocd
+type: Opaque
+stringData:
+  admin.password: '$2a$10$o/Qj4Y3kZs.4CkUKFDqwRuFGIjPLdMhPOQ4jCnPIKeZhNIBKBYWpC'  # Password: admin
+  server.secretkey: 'b2FyZ29jZGlzYXN3ZXNvbWU='
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: argocd-server
+  template:
+    metadata:
+      labels:
+        app: argocd-server
+    spec:
+      serviceAccountName: argocd-server
+      containers:
+      - name: argocd-server
+        image: quay.io/argoproj/argocd:v2.9.3
+        command:
+        - argocd-server
+        args:
+        - --staticdir=/shared/app
+        - --repo-server=argocd-repo-server:8081
+        - --dex-server=http://argocd-dex-server:5556
+        - --logformat=json
+        - --loglevel=info
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 8083
+          name: https
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: ssh-known-hosts-cm
+          mountPath: /app/config/ssh
+        - name: tls-certs-cm
+          mountPath: /app/config/tls
+        - name: argocd-repo-server-tls
+          mountPath: /app/config/server/tls
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: ssh-known-hosts-cm
+        configMap:
+          name: argocd-ssh-known-hosts-cm
+          optional: true
+      - name: tls-certs-cm
+        configMap:
+          name: argocd-tls-certs-cm
+          optional: true
+      - name: argocd-repo-server-tls
+        secret:
+          secretName: argocd-repo-server-tls
+          optional: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 8083
+  selector:
+    app: argocd-server
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-repo-server
+  template:
+    metadata:
+      labels:
+        app: argocd-repo-server
+    spec:
+      serviceAccountName: argocd-application-controller
+      containers:
+      - name: argocd-repo-server
+        image: quay.io/argoproj/argocd:v2.9.3
+        command:
+        - argocd-repo-server
+        args:
+        - --logformat=json
+        - --loglevel=info
+        ports:
+        - containerPort: 8081
+          name: server
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        volumeMounts:
+        - name: ssh-known-hosts-cm
+          mountPath: /app/config/ssh
+        - name: tls-certs-cm
+          mountPath: /app/config/tls
+        livenessProbe:
+          tcpSocket:
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: ssh-known-hosts-cm
+        configMap:
+          name: argocd-ssh-known-hosts-cm
+          optional: true
+      - name: tls-certs-cm
+        configMap:
+          name: argocd-tls-certs-cm
+          optional: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  ports:
+  - name: server
+    port: 8081
+    protocol: TCP
+    targetPort: 8081
+  selector:
+    app: argocd-repo-server
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-application-controller
+  namespace: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-application-controller
+  template:
+    metadata:
+      labels:
+        app: argocd-application-controller
+    spec:
+      serviceAccountName: argocd-application-controller
+      containers:
+      - name: argocd-application-controller
+        image: quay.io/argoproj/argocd:v2.9.3
+        command:
+        - argocd-application-controller
+        args:
+        - --repo-server=argocd-repo-server:8081
+        - --logformat=json
+        - --loglevel=info
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        env:
+        - name: ARGOCD_RECONCILATION_TIMEOUT
+          value: 180s
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8082
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      securityContext:
+        fsGroup: 999
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-ssh-known-hosts-cm
+  namespace: argocd
+data:
+  ssh_known_hosts: |
+    github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRG7abudxQbsbGFHs5ZQKaLKKqJXlN1UtSgYBP3xWxr5cRr9J2uKbxYrB0q3fqUdDk9U/jk7tKzKvlbILCp1KfCb0S0a6+HhRBdqEsBn6aJdbEfG49xE3SJbf9nQMSWCVFCfWoJl8h2H1Z7QSw0O8y5hS8wQPvGi5UmYg5xZzBHpOLILEqxFQNh2BmWEUj3rPz2dqDXcyLjzjWl2SxGhxiXLvYbUXFLMRHp4mRk7cLdDPEj8L8QBBVbAUZ0VGvP/xDhQX5W7bZs8tI0RbKU5oPVjGVDwG6L0nM2zhYhZb0s6Z3fOQQyGl8v8jKm8d0d0GyQRqB2s=
+    gitlab.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCsTfr+xZ1yV6FvG2Bx9ZLtG8V7D5LqiIz5d6S+GVQBxo4+AK0PbIXDWJfmFgdCp0FAh0N7sCnU7jdPIUiNUeXzKJ1cDqfAqPPoE0iUBb9KJ2cW5fbR5QZWPJE2JMKzARxWdsKT3nFElHzp5cPaHbOKqVWqZVpkGSI6WlLcfKHz9FfgfqfMp3GqL7Q8h6N6KvQJqtLKc5jYxWZKy8l3lnAO3FJ4kR0qvIdGqF0JdKrI1u0VIkF7XcEHx7Rr6/g3b0P7M3Z3dR0F4xK5t3N5H6P2Z5xI1K3F3J3T3G3l3L3X5j0A0ZLKnQP

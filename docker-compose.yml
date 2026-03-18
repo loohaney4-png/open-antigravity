@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: open-antigravity-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-antigravity}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-open_antigravity}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-antigravity}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - open-antigravity-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: open-antigravity-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - open-antigravity-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: open-antigravity-backend
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 5000
+      DB_HOST: postgres
+      DB_USER: ${DB_USER:-antigravity}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_NAME: ${DB_NAME:-open_antigravity}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - open-antigravity-network
+    restart: unless-stopped
+
+  # Frontend UI
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: open-antigravity-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:5000/api
+      REACT_APP_WS_URL: ws://localhost:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - open-antigravity-network
+    restart: unless-stopped
+
+  # Mitmproxy for intercepting requests (Development only)
+  mitmproxy:
+    build:
+      context: ./mitmserver
+      dockerfile: Dockerfile
+    container_name: open-antigravity-mitm
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    depends_on:
+      - backend
+    networks:
+      - open-antigravity-network
+    restart: unless-stopped
+    profiles: ["dev"]
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  open-antigravity-network:
+    driver: bridge

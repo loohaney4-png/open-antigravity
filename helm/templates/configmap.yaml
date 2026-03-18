@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.global.namespace }}
+  labels:
+    app: antigravity
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: antigravity-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: antigravity
+data:
+  NODE_ENV: {{ .Values.global.environment }}
+  LOG_LEVEL: {{ .Values.logging.loglevel }}
+  OLLAMA_ENDPOINT: "http://ollama:{{ .Values.ollama.port }}"
+  DEFAULT_MODEL: "mistral"
+  {{- range $key, $value := .Values.backend.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: antigravity-secrets
+  namespace: {{ .Values.global.namespace }}
+type: Opaque
+stringData:
+  JWT_SECRET: "{{ randAlphaNum 32 }}"
+  DATABASE_URL: "postgres://{{ .Values.postgres.username }}:{{ .Values.postgres.password }}@postgres:{{ .Values.postgres.port }}/{{ .Values.postgres.database }}"
+  REDIS_URL: "redis://redis:{{ .Values.redis.port }}"

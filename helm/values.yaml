@@ -1,0 +1,175 @@
+global:
+  namespace: antigravity-system
+  environment: production
+  domain: antigravity.example.com
+
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: open-antigravity/backend
+    tag: latest
+    pullPolicy: Always
+  port: 5000
+  service:
+    type: ClusterIP
+    annotations: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  env:
+    LOG_LEVEL: info
+    NODE_ENV: production
+    MAX_TASK_TIMEOUT: "3600"
+    TASK_RETRY_ATTEMPTS: "3"
+
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: open-antigravity/frontend
+    tag: latest
+    pullPolicy: Always
+  port: 3000
+  service:
+    type: LoadBalancer
+    annotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+
+ollama:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ollama/ollama
+    tag: latest
+    pullPolicy: Always
+  port: 11434
+  models:
+    - mistral
+    - neural-chat
+    - llama2
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+    limits:
+      cpu: 2000m
+      memory: 8Gi
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""
+  nodeSelector: {}
+
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "15-alpine"
+    pullPolicy: IfNotPresent
+  port: 5432
+  database: antigravity
+  username: antigravity
+  password: "change-me-in-production"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  maxConnections: 100
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+  maxMemory: 512mb
+  persistence:
+    enabled: false
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: antigravity.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls:
+    enabled: true
+    secretName: antigravity-tls
+
+metrics:
+  enabled: true
+  servicemonitor:
+    enabled: false
+    interval: 30s
+
+certificates:
+  enabled: true
+  issuer: letsencrypt-prod
+  email: admin@antigravity.example.com
+
+security:
+  rbac:
+    create: true
+  podSecurityPolicy:
+    enabled: false
+  networkPolicy:
+    enabled: false
+
+monitoring:
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
+
+logging:
+  loglevel: info
+  persistence:
+    enabled: false

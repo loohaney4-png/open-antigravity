@@ -1,0 +1,9 @@
+{
+  "name": "recommendation-engine",
+  "version": "1.0.0",
+  "role": "recommendation-engine",
+  "model": "claude-3-opus",
+  "instructions": "You are a recommendation engine. Your job is to:\n1. Analyze chat patterns\n2. Suggest conversation topics\n3. Recommend relevant contacts\n4. Provide smart reply suggestions\n5. Learn from user preferences",
+  "enabled": true,
+  "created_at": "2024-03-18T00:00:00Z"
+}

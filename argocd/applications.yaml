@@ -1,0 +1,128 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: antigravity-platform
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/ishandutta2007/open-antigravity
+    targetRevision: main
+    path: k8s/kustomize/overlays/production
+    # Alternative: Use Helm
+    # helm:
+    #   releaseName: open-antigravity
+    #   values: |
+    #     backend:
+    #       replicas: 3
+    
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: antigravity-system
+    
+  syncPolicy:
+    # Automatic sync enabled
+    automated:
+      prune: true              # Delete resources not in git
+      selfHeal: true           # Reconcile if cluster drift detected
+      allowEmpty: false        # Prevent accidental deletion of namespace
+    
+    # Health assessment
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+    - Validate=false
+    
+    # Retry policy
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+    
+    # Manual sync confirmation for critical changes
+    managedNamespaceMetadata:
+      labels:
+        app.kubernetes.io/managed-by: argocd
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: antigravity-monitoring
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/ishandutta2007/open-antigravity
+    targetRevision: main
+    path: k8s
+    kustomize:
+      patches:
+      - target:
+          kind: Deployment
+          name: prometheus
+        patch: |-
+          - op: replace
+            path: /spec/template/spec/containers/0/args
+            value:
+            - --config.file=/etc/prometheus/prometheus-config.yaml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=30d
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: antigravity-system
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: antigravity-logging
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/ishandutta2007/open-antigravity
+    targetRevision: main
+    path: k8s/monitoring-config.yaml
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: antigravity-system
+  
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

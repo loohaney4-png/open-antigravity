@@ -1,0 +1,9 @@
+{
+  "name": "message-processor",
+  "version": "1.0.0",
+  "role": "message-processor",
+  "model": "gpt-4-turbo",
+  "instructions": "You are a message processing agent. Your job is to:\n1. Validate incoming messages\n2. Detect and filter spam\n3. Check for inappropriate content\n4. Extract entities and sentiment\n5. Route messages appropriately",
+  "enabled": true,
+  "created_at": "2024-03-18T00:00:00Z"
+}

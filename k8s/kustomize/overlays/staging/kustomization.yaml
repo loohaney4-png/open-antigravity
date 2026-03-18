@@ -1,0 +1,71 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: antigravity-system
+
+resources:
+  - ../../k8s/crds/agent-crd.yaml
+  - ../../k8s/crds/task-crd.yaml
+  - ../../k8s/rbac.yaml
+  - ../../k8s/database.yaml
+  - ../../k8s/deployment.yaml
+
+commonLabels:
+  environment: staging
+  managed-by: kustomize
+
+commonAnnotations:
+  kustomize.config.k8s.io/needs-hash: "true"
+
+replicas:
+  - name: antigravity-backend
+    count: 2
+  - name: ollama
+    count: 1
+  - name: redis
+    count: 1
+
+patchesStrategicMerge:
+  - |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: antigravity-backend
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backend
+            resources:
+              requests:
+                cpu: 250m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+configMapGenerator:
+  - name: antigravity-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=info
+      - ENABLE_PROFILING=false
+
+secretGenerator:
+  - name: antigravity-secrets
+    behavior: merge
+    envs:
+      - secrets.env
+
+images:
+  - name: open-antigravity/backend
+    newTag: staging
+  - name: open-antigravity/frontend
+    newTag: staging
+  - name: postgres
+    newTag: "15-alpine"
+  - name: redis
+    newTag: "7-alpine"
+  - name: ollama/ollama
+    newTag: latest

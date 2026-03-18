@@ -1,0 +1,87 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: antigravity-system
+
+resources:
+  - ../../k8s/crds/agent-crd.yaml
+  - ../../k8s/crds/task-crd.yaml
+  - ../../k8s/rbac.yaml
+  - ../../k8s/database.yaml
+  - ../../k8s/deployment.yaml
+
+commonLabels:
+  environment: production
+  managed-by: kustomize
+
+commonAnnotations:
+  kustomize.config.k8s.io/needs-hash: "true"
+
+replicas:
+  - name: antigravity-backend
+    count: 3
+  - name: ollama
+    count: 1
+  - name: redis
+    count: 1
+
+patchesStrategicMerge:
+  - |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: antigravity-backend
+    spec:
+      replicas: 3
+      template:
+        spec:
+          containers:
+          - name: backend
+            resources:
+              requests:
+                cpu: 500m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 1Gi
+            securityContext:
+              runAsNonRoot: true
+              readOnlyRootFilesystem: true
+              allowPrivilegeEscalation: false
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                    - antigravity
+                topologyKey: kubernetes.io/hostname
+
+configMapGenerator:
+  - name: antigravity-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=warn
+      - ENABLE_PROFILING=false
+      - ENABLE_METRICS=true
+
+secretGenerator:
+  - name: antigravity-secrets
+    behavior: merge
+    envs:
+      - secrets.env
+
+images:
+  - name: open-antigravity/backend
+    newTag: latest
+  - name: open-antigravity/frontend
+    newTag: latest
+  - name: postgres
+    newTag: "15-alpine"
+  - name: redis
+    newTag: "7-alpine"
+  - name: ollama/ollama
+    newTag: latest

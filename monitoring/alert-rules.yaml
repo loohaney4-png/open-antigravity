@@ -1,0 +1,261 @@
+groups:
+  # Application health alerts
+  - name: application.rules
+    interval: 30s
+    rules:
+      - alert: BackendDown
+        expr: up{job="antigravity-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Backend is down"
+          description: "Backend pod ({{ $labels.pod }}) has been unavailable for > 2 minutes"
+          dashboard: "http://grafana:3000/d/backend-metrics"
+
+      - alert: HighErrorRate
+        expr: |
+          rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      - alert: SlowResponseTime
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "Slow API response times"
+          description: "P95 latency is {{ $value }}s on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: |
+          container_memory_usage_bytes{pod=~"antigravity-.*"} / container_spec_memory_limit_bytes > 0.85
+        for: 3m
+        labels:
+          severity: warning
+          component: memory
+        annotations:
+          summary: "Memory usage is high"
+          description: "Pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory limit"
+
+      - alert: CrashLoopDetected
+        expr: |
+          rate(kube_pod_container_status_restarts_total{pod=~"antigravity-.*"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: container
+        annotations:
+          summary: "Container is crashing"
+          description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last 15 minutes"
+
+  # Database alerts
+  - name: database.rules
+    interval: 30s
+    rules:
+      - alert: PostgreSQLDown
+        expr: up{job="postgresql"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL instance ({{ $labels.instance }}) is unavailable"
+
+      - alert: PostgreSQLHighConnections
+        expr: |
+          pg_stat_activity_count > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High PostgreSQL connection count"
+          description: "{{ $value }} connections active, max is 100"
+
+      - alert: PostgreSQLSlowQueries
+        expr: |
+          pg_slow_queries_total > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow queries detected in PostgreSQL"
+          description: "{{ $value }} slow queries in the last 5 minutes"
+
+      - alert: PostgreSQLReplicationLag
+        expr: |
+          pg_replication_lag_seconds > 10
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "PostgreSQL replication lag detected"
+          description: "Replication lag is {{ $value }}s"
+
+  # Cache/Redis alerts
+  - name: redis.rules
+    interval: 30s
+    rules:
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance ({{ $labels.instance }}) is unavailable"
+
+      - alert: RedisHighMemory
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 3m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}"
+
+      - alert: RedisEvictionHigh
+        expr: |
+          rate(redis_evicted_keys_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "High Redis eviction rate"
+          description: "Keys evicted at rate of {{ $value }}/sec"
+
+  # AI Model alerts
+  - name: ai_models.rules
+    interval: 30s
+    rules:
+      - alert: OllamaDown
+        expr: up{job="ollama"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: llm
+        annotations:
+          summary: "Ollama LLM service is down"
+          description: "Ollama instance ({{ $labels.instance }}) is unavailable"
+
+      - alert: ModelLoadFailure
+        expr: |
+          increase(ollama_load_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "Ollama model loading failed"
+          description: "{{ $value }} model load failures in the last 5 minutes"
+
+      - alert: HighLLMLatency
+        expr: |
+          histogram_quantile(0.95, rate(ollama_inference_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: llm
+        annotations:
+          summary: "High LLM inference latency"
+          description: "P95 latency is {{ $value }}s (model: {{ $labels.model }})"
+
+  # Kubernetes cluster alerts
+  - name: kubernetes.rules
+    interval: 30s
+    rules:
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: cluster
+        annotations:
+          summary: "Kubernetes node not ready"
+          description: "Node {{ $labels.node }} is not in Ready state"
+
+      - alert: PodCrashLooping
+        expr: |
+          rate(kube_pod_container_status_restarts_total{namespace="antigravity-system"}[15m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          component: cluster
+        annotations:
+          summary: "Pod is crash looping"
+          description: "Pod {{ $labels.pod }} restart rate is {{ $value }}"
+
+      - alert: PersistentVolumeAlmostFull
+        expr: |
+          kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "PersistentVolume almost full"
+          description: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+
+      - alert: KubernetesMemoryPressure
+        expr: |
+          kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: cluster
+        annotations:
+          summary: "Node has memory pressure"
+          description: "Node {{ $labels.node }} is experiencing memory pressure"
+
+  # Task execution alerts
+  - name: tasks.rules
+    interval: 30s
+    rules:
+      - alert: TaskExecutionFailure
+        expr: |
+          increase(task_executions_failed_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: tasks
+        annotations:
+          summary: "High task execution failure rate"
+          description: "{{ $value }} task execution failures in the last 5 minutes"
+
+      - alert: TaskQueueBacklog
+        expr: |
+          task_queue_depth > 1000
+        for: 10m
+        labels:
+          severity: warning
+          component: tasks
+        annotations:
+          summary: "Task queue backlog detected"
+          description: "{{ $value }} tasks waiting in queue"
+
+      - alert: LongRunningTask
+        expr: |
+          (time() - task_start_time_seconds) > 3600
+        labels:
+          severity: info
+          component: tasks
+        annotations:
+          summary: "Long running task detected"
+          description: "Task {{ $labels.task_id }} has been running for {{ $value | humanizeDuration }}"

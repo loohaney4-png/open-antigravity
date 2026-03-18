@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  service.slack: |
+    token: $slack-token
+  service.github: |
+    appID: $github-app-id
+    installationID: $github-installation-id
+    privateKey: $github-private-key
+  service.email: |
+    host: smtp.example.com
+    port: 587
+    from: argocd@example.com
+    username: $email-username
+    password: $email-password
+  
+  # Slack notification template
+  template.app-health-degraded: |
+    message: |
+      Application {{.app.metadata.name}} health is degraded.
+      {{if eq .app.status.operationState.phase "Failed"}}
+        Sync is failed.
+      {{end}}
+    slack:
+      attachments: |
+        [{
+          "color": "#f4c030",
+          "fields": [
+          {
+            "title": "Sync Status",
+            "value": "{{.app.status.sync.status}}",
+            "short": true
+          },
+          {
+            "title": "Repository",
+            "value": "{{.app.spec.source.repoURL}}",
+            "short": true
+          },
+          {
+            "title": "Revision",
+            "value": "{{.app.spec.source.targetRevision}}",
+            "short": true
+          }
+          {{range $index, $c := .app.status.resources}}
+            {{if eq $c.health.status "Degraded"}}
+            ,{
+              "title": "{{$c.kind}}/{{$c.name}}",
+              "value": "{{$c.health.message}}",
+              "short": true
+            }
+            {{end}}
+          {{end}}
+          ]
+        }]
+  
+  # GitHub status notification
+  template.app-deployment-succeeded: |
+    message: Application {{.app.metadata.name}} deployment is succeeded.
+    github:
+      state: success
+      label: continuous-delivery/{{.app.metadata.name}}
+      targetURL: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+  
+  # Email notification
+  template.app-sync-failed: |
+    message: |
+      Application {{.app.metadata.name}} sync is failed.
+      {{if eq .app.status.operationState.phase "Failed"}}
+        Sync operation failed with message: {{.app.status.operationState.message}}
+      {{end}}
+    email:
+      subject: Application {{.app.metadata.name}} sync failed
+  
+  # Webhook notification
+  service.webhook: |
+    url: http://webhook-receiver:8080
+  
+  template.app-sync-running: |
+    webhook:
+      path: /sync
+      body: |
+        {
+          "app": "{{.app.metadata.name}}",
+          "status": "{{.app.status.operationState.phase}}",
+          "sync": {
+            "status": "{{.app.status.sync.status}}",
+            "revision": "{{.app.spec.source.targetRevision}}"
+          }
+        }
+  
+  trigger.on-app-health-degraded: |
+    - when: app.status.health.status == 'Degraded'
+      oncePer: app.status.operationState.startedAt
+      sendTo: [slack]
+  
+  trigger.on-app-sync-failed: |
+    - when: app.status.operationState.phase in ['Error', 'Failed']
+      oncePer: app.status.operationState.finishedAt
+      sendTo: [slack, github, email]
+  
+  trigger.on-app-sync-succeeded: |
+    - when: app.status.operationState.phase == 'Succeeded'
+      oncePer: app.status.operationState.finishedAt
+      sendTo: [slack, github]
+  
+  trigger.on-app-sync-running: |
+    - when: app.status.operationState.phase == 'Running'
+      sendTo: [webhook]
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-notifications-secret
+  namespace: argocd
+type: Opaque
+stringData:
+  slack-token: xoxb-xxx  # Slack bot token
+  github-app-id: '123456'
+  github-installation-id: '12345678'
+  github-private-key: |
+    -----BEGIN RSA PRIVATE KEY-----
+    ...
+    -----END RSA PRIVATE KEY-----
+  email-username: argocd@example.com
+  email-password: password

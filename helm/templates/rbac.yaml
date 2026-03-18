@@ -1,0 +1,53 @@
+{{- if .Values.security.rbac.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: antigravity-operator
+  namespace: {{ .Values.global.namespace }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: antigravity-operator
+rules:
+  - apiGroups: ["antigravity.io"]
+    resources: ["agents", "agents/status", "tasks", "tasks/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: antigravity-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: antigravity-operator
+subjects:
+  - kind: ServiceAccount
+    name: antigravity-operator
+    namespace: {{ .Values.global.namespace }}
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: antigravity-agent
+  namespace: {{ .Values.global.namespace }}
+{{- end }}

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: open-antigravity
+description: Helm chart for Open-Antigravity AI Agent Platform
+type: application
+version: 1.0.0
+appVersion: 0.1.0
+keywords:
+  - ai
+  - agents
+  - kubernetes
+  - automation
+home: https://github.com/ishandutta2007/open-antigravity
+sources:
+  - https://github.com/ishandutta2007/open-antigravity
+maintainers:
+  - name: OpenAntigravity Team
+    email: team@open-antigravity.io

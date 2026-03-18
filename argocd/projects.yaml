@@ -1,0 +1,111 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+spec:
+  description: Default project for Antigravity platform
+  
+  # Source repositories - which git repos can deploy from
+  sourceRepos:
+  - 'https://github.com/ishandutta2007/open-antigravity'
+  - 'https://github.com/ishandutta2007/*'  # Allow all ishandutta2007 repos
+  - '*'  # Allow any repo (restrict in production)
+  
+  # Destination clusters and namespaces
+  destinations:
+  - namespace: 'antigravity-*'
+    server: https://kubernetes.default.svc
+  - namespace: 'argocd'
+    server: https://kubernetes.default.svc
+  - namespace: 'logging'
+    server: https://kubernetes.default.svc
+  - namespace: 'monitoring'
+    server: https://kubernetes.default.svc
+  
+  # Cluster resources that can be managed
+  clusterResourceWhitelist:
+  - group: 'apiextensions.k8s.io'
+    kind: CustomResourceDefinition
+  - group: 'rbac.authorization.k8s.io'
+    kind: ClusterRole
+  - group: 'rbac.authorization.k8s.io'
+    kind: ClusterRoleBinding
+  - group: ''
+    kind: PersistentVolume
+  - group: 'storage.k8s.io'
+    kind: StorageClass
+  
+  # Namespace resources that cannot be managed
+  # (allows for finer control)
+  namespaceResourceBlacklist:
+  - group: ''
+    kind: ResourceQuota
+  - group: ''
+    kind: LimitRange
+  
+  # Allow orphaned resources (don't delete if removed from git)
+  orphanedResources:
+    warn: true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: production
+  namespace: argocd
+spec:
+  description: Production project with strict policies
+  
+  sourceRepos:
+  - 'https://github.com/ishandutta2007/open-antigravity'
+  
+  destinations:
+  - namespace: 'antigravity-system'
+    server: https://kubernetes.default.svc
+  
+  clusterResourceWhitelist:
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+  
+  namespaceResourceBlacklist:
+  - group: ''
+    kind: ResourceQuota
+  - group: ''
+    kind: LimitRange
+  
+  # Require manual sync for production
+  syncWindows:
+  - kind: allow
+    schedule: '0 22 * * *'  # 10 PM UTC
+    blockedSchedule:
+    - cron: '0 0,6 * * *'  # Block at midnight and 6 AM
+    applications:
+    - '*'
+    manualSync: true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: development
+  namespace: argocd
+spec:
+  description: Development project with relaxed policies
+  
+  sourceRepos:
+  - 'https://github.com/ishandutta2007/*'
+  - 'https://github.com/*/open-antigravity'
+  
+  destinations:
+  - namespace: 'antigravity-*'
+    server: https://kubernetes.default.svc
+  - namespace: 'dev-*'
+    server: https://kubernetes.default.svc
+  
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  
+  orphanedResources:
+    warn: false

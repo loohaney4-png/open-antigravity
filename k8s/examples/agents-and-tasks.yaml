@@ -1,0 +1,199 @@
+---
+# Example 1: Research Agent
+apiVersion: antigravity.io/v1
+kind: Agent
+metadata:
+  name: research-agent
+  namespace: antigravity-system
+spec:
+  name: "Research Agent"
+  role: researcher
+  model: mistral
+  instructions: |
+    You are an expert research analyst. Your role is to:
+    1. Gather and analyze information on assigned topics
+    2. Synthesize findings into clear reports
+    3. Identify key trends and patterns
+    4. Provide evidence-based recommendations
+  replicas: 2
+  resourceRequirements:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+
+---
+# Example 2: Development Agent
+apiVersion: antigravity.io/v1
+kind: Agent
+metadata:
+  name: dev-agent
+  namespace: antigravity-system
+spec:
+  name: "Development Agent"
+  role: developer
+  model: neural-chat
+  instructions: |
+    You are an expert software developer. Your role is to:
+    1. Write clean, maintainable code
+    2. Follow best practices and design patterns
+    3. Write comprehensive tests
+    4. Review and improve code quality
+  replicas: 1
+  resourceRequirements:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+---
+# Example 3: Testing Agent
+apiVersion: antigravity.io/v1
+kind: Agent
+metadata:
+  name: test-agent
+  namespace: antigravity-system
+spec:
+  name: "Quality Assurance Agent"
+  role: tester
+  model: llama2
+  instructions: |
+    You are a QA engineer and testing expert. Your role is to:
+    1. Design comprehensive test cases
+    2. Identify edge cases and potential failures
+    3. Ensure code quality and reliability
+    4. Document test results and findings
+  replicas: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 75
+
+---
+# Example Task 1: Market Analysis
+apiVersion: antigravity.io/v1
+kind: Task
+metadata:
+  name: market-analysis-2026-q1
+  namespace: antigravity-system
+spec:
+  agentId: research-agent
+  description: |
+    Analyze the technology market trends for Q1 2026.
+    Focus on:
+    - AI and machine learning market growth
+    - Cloud infrastructure trends
+    - Developer tool innovations
+    - Enterprise software adoption patterns
+  priority: high
+  timeout: 3600
+  context:
+    market: technology
+    timeframe: Q1-2026
+    regions:
+      - North America
+      - Europe
+      - Asia-Pacific
+  retryPolicy:
+    maxRetries: 3
+    backoffSeconds: 5
+    exponentialBackoff: true
+  artifacts:
+    - name: market_data
+      path: /data/market-data.json
+      source: s3://data-bucket/market-trends/2026-q1.json
+
+---
+# Example Task 2: Code Implementation
+apiVersion: antigravity.io/v1
+kind: Task
+metadata:
+  name: implement-api-gateway
+  namespace: antigravity-system
+spec:
+  agentId: dev-agent
+  description: |
+    Implement a new API Gateway service with the following features:
+    - Request rate limiting
+    - JWT authentication
+    - Request/response logging
+    - Circuit breaker pattern
+    - Health check endpoint
+  priority: high
+  timeout: 7200
+  context:
+    language: TypeScript
+    framework: Express.js
+    version: "1.0.0"
+  dependsOn:
+    - design-api-gateway
+  artifacts:
+    - name: design_doc
+      path: /designs/api-gateway.md
+      source: file://./docs/api-gateway-design.md
+
+---
+# Example Task 3: Test Suite Creation
+apiVersion: antigravity.io/v1
+kind: Task
+metadata:
+  name: create-e2e-tests
+  namespace: antigravity-system
+spec:
+  agentId: test-agent
+  description: |
+    Create comprehensive end-to-end test suite for the new API Gateway.
+    Coverage should include:
+    - Authentication flows
+    - Rate limiting enforcement
+    - Error handling
+    - Load testing scenarios
+    - Security vulnerability testing
+  priority: normal
+  timeout: 5400
+  context:
+    testFramework: Jest
+    coverage_target: 85
+  dependsOn:
+    - implement-api-gateway
+  notifications:
+    onSuccess:
+      - "notify:slack:dev-channel"
+      - "notify:email:team@example.com"
+    onFailure:
+      - "notify:slack:dev-channel"
+      - "notify:pagerduty:on-call"
+    webhook: "https://api.example.com/webhooks/task-notifications"
+
+---
+# Example Task 4: Parallel Execution
+apiVersion: antigravity.io/v1
+kind: Task
+metadata:
+  name: parallel-code-review
+  namespace: antigravity-system
+spec:
+  agentId: dev-agent
+  description: "Review code changes in parallel across multiple modules"
+  priority: normal
+  timeout: 1800
+  parallelTasks:
+    - review-module-a
+    - review-module-b
+    - review-module-c
+    - review-module-d
+  context:
+    reviewType: "code-quality"
+    checkstyle: true
+    security_scan: true
+    performance_analysis: true
