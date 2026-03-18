@@ -1,0 +1,6 @@
+{"level":"info","message":"Open-Antigravity backend listening on port 5000","service":"open-antigravity","timestamp":"2026-03-18T10:50:01.672Z"}
+{"level":"info","message":"GET /health","service":"open-antigravity","timestamp":"2026-03-18T10:50:02.445Z"}
+{"level":"info","message":"Open-Antigravity backend listening on port 5000","service":"open-antigravity","timestamp":"2026-03-18T10:50:17.641Z"}
+{"level":"info","message":"GET /health","service":"open-antigravity","timestamp":"2026-03-18T10:50:19.420Z"}
+{"level":"info","message":"Open-Antigravity backend listening on port 5000","service":"open-antigravity","timestamp":"2026-03-18T10:50:33.191Z"}
+{"level":"info","message":"GET /health","service":"open-antigravity","timestamp":"2026-03-18T10:50:35.003Z"}

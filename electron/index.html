@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Open Antigravity IDE (Desktop)</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #0c0f1d; color: #f6f7ff; }
+    .card { background: #12172c; border: 1px solid #2a2f44; border-radius: 10px; box-shadow: 0 5px 18px rgba(0,0,0,.35); padding: 22px; max-width: 950px; }
+    h1 { margin-top: 0; }
+    button { border: none; border-radius: 6px; padding: 10px 14px; background: #4f7cff; color: #fff; cursor: pointer; margin-right: 10px; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    pre { background: #08152b; color: #cbe5ff; padding: 12px; border-radius: 8px; overflow-x: auto; }
+    a { color: #7db8ff; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Open-Antigravity Desktop</h1>
+    <p>Status: <strong id="status">starting backend...</strong></p>
+    <div>
+      <button id="btn-health">Check backend health</button>
+      <button id="btn-open-browser">Open Web UI in browser</button>
+    </div>
+    <p>Backend endpoint: <code>http://localhost:5000</code></p>
+    <p>Available APIs: <a href="http://localhost:5000/api/agents" target="_blank">/api/agents</a>, <a href="http://localhost:5000/health" target="_blank">/health</a>.</p>
+    <pre id="output">⏳ Waiting for backend...
+</pre>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const outputEl = document.getElementById('output');
+    const btnHealth = document.getElementById('btn-health');
+    const btnOpenBrowser = document.getElementById('btn-open-browser');
+    const backend = 'http://localhost:5000';
+
+    async function checkHealth() {
+      statusEl.textContent = 'checking backend...';
+      try {
+        const res = await fetch(`${backend}/health`);
+        const data = await res.json();
+        statusEl.textContent = res.ok ? 'healthy' : 'unhealthy';
+        outputEl.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        statusEl.textContent = 'offline';
+        outputEl.textContent = 'Unable to reach backend. Is backend running?\n' + err;
+      }
+    }
+
+    btnHealth.addEventListener('click', checkHealth);
+    btnOpenBrowser.addEventListener('click', () => {
+      window.open('http://localhost:5000', '_blank');
+    });
+
+    async function pollHealth() {
+      for (let i=0; i<20; i++) {
+        try {
+          const res = await fetch(`${backend}/health`);
+          if (res.ok) {
+            statusEl.textContent = 'healthy';
+            outputEl.textContent = JSON.stringify(await res.json(), null, 2);
+            return;
+          }
+        } catch (e) {}
+        statusEl.textContent = 'starting...';
+        await new Promise(r => setTimeout(r, 800));
+      }
+      statusEl.textContent = 'failed to connect';
+      outputEl.textContent = 'Backend did not respond at http://localhost:5000/health. Please check logs.';
+    }
+
+    pollHealth();
+  </script>
+</body>
+</html>

@@ -144,6 +144,40 @@ Interested in building the future of software development with us? Here’s how 
     ```
     This will build all the services and launch the Open-Antigravity platform. You can access it at `http://localhost:3000`.
 
+## 🖥️ Desktop App (Electron) Install
+
+This repository now includes a desktop shell for macOS, Windows, and Linux using Electron and electron-builder.
+
+### Development desktop run
+
+```bash
+npm install
+npm run desktop:dev
+```
+
+### Production desktop run (local)
+
+```bash
+npm install
+npm run desktop:prod
+```
+
+### Build installable packages
+
+```bash
+npm install
+npm run desktop:build
+```
+
+- Output packages will appear under `release/`.
+- macOS: `.dmg`
+- Windows: `.exe` installer (NSIS)
+- Linux: `.AppImage`, `.deb`, `.rpm`
+
+### Clean up (stop service)
+
+The desktop app starts the backend service via `node backend/api/server.js` automatically. Close the app and it will stop the backend process. If you want to stop it manually, find the process with `ps aux | grep backend/api/server.js` and `kill <pid>`.
+
 ## 🙌 How to Contribute
 
 We believe this ambitious project can only be realized as a community. We welcome contributions from everyone, whether you're a developer, a designer, a technical writer, or just an enthusiast.

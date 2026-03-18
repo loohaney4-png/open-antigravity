@@ -2,6 +2,7 @@
   "name": "open-antigravity",
   "version": "0.1.0",
   "description": "Open-source, universal AI gateway for agentic development",
+  "main": "electron/main.js",
   "keywords": [
     "ai",
     "agent",
@@ -10,7 +11,10 @@
     "code-generation",
     "llm"
   ],
-  "author": "OpenAntigravity Community",
+  "author": {
+    "name": "OpenAntigravity Community",
+    "email": "opensource@antigravity.example"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,6 +25,9 @@
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\"",
     "build": "cd backend && npm install && cd ../frontend && npm install && npm run build",
     "start": "npm run dev",
+    "desktop:dev": "cross-env NODE_ENV=development electron electron/main.js",
+    "desktop:prod": "npm run build && electron electron/main.js",
+    "desktop:build": "electron-builder",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
@@ -29,6 +36,42 @@
     "lint": "concurrently \"cd backend && npm run lint\" \"cd frontend && npm run lint\""
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^27.3.0",
+    "electron-builder": "^24.6.0"
+  },
+  "build": {
+    "appId": "com.openantigravity.ide",
+    "productName": "Open-Antigravity IDE",
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,README,README.*}",
+      "!**/.git/**",
+      "electron/**"    
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend"
+      },
+      {
+        "from": "docker-compose.yml",
+        "to": "docker-compose.yml"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": ["AppImage", "deb", "rpm"]
+    }
   }
 }
